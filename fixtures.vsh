@@ -1,4 +1,4 @@
-// actualy the same as fixtures.v but as VSH script
+// actualy the same as fixtures.v but as VSH script...just to test if it's a VSH specific BUG
 import os
 import time
 import rand
