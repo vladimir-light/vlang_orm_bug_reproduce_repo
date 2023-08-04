@@ -70,20 +70,19 @@ fn init_teams(db sqlite.DB) ! {
 }
 
 fn init_predictions_simplified(db sqlite.DB) ! {
-	// Simplified version of init_predictions
-	// We create only one prediction with specific team-ids, no loop over teams
+	// We create only one Prediction with specific team-ids, no loop over teams
 	sql db {
 		create table Prediction
 	}!
 
-	// if there's no teams -> abbort!
+	// If there are no teams → abort!
 	found_teams := db.q_int('SELECT COUNT(*) FROM `teams`')
 	if found_teams < 2 {
 		return error('not enough teams')
 	}
 
-	// always remove all exsiting predictions, no need ti check if there are any..
-	db.exec_none('DELETE FROM `predictions`') // unfortunately there's no way to run this with sql db { delete from ... }
+	// Always remove all existing predictions, no need to check if there are any.
+	db.exec_none('DELETE FROM `predictions`') // unfortunately there's no way to run this with `sql db { delete from Prediction }`
 
 	// first Team
 	home_team := sql db {
@@ -111,6 +110,54 @@ fn init_predictions_simplified(db sqlite.DB) ! {
 	sql db {
 		insert new_pred into Prediction
 	}!
+}
+
+
+fn init_predictions_no_orm(db sqlite.DB) ! {
+	// still the quickest way to create table if not exists even though this function should NOT use any ORM calls
+	sql db {
+		create table Prediction
+	}!
+
+
+	//1) check if there enough teams
+	//2) check if there any existing predictions. if so, remove
+	//3) create predictions with random teams
+
+	//1)
+	found_teams :=db.q_int("SELECT COUNT(*) FROM `teams`")
+	if found_teams < 2
+	{
+		panic('Not enought teams...')
+	}
+
+	// 2) just delete everytime.
+	db.exec_none('DELETE FROM `predictions`')
+
+	//3) create
+	// 3.1 - get list of all odd teams (randomly ordered)
+	// 3.2 - get list of all even teams (randomly ordered)
+	// 3.3 - create prediction with a odd and even teams-id
+
+
+	// 3.1 and 3.2
+	mut even_teams_ids, _ := db.exec('SELECT id FROM `teams` WHERE (id&1)=0 ORDER BY RANDOM()')
+	mut odd_teams_ids, _ := db.exec('SELECT id FROM `teams` WHERE (id&1)<>0 ORDER BY RANDOM()')
+	//
+	for {
+		if even_teams_ids.len < 1 || odd_teams_ids.len < 1 {
+			// exit loop if there's no teams to process
+			break
+		}
+
+		even_team := even_teams_ids.pop()
+		home_team_id := even_team.vals[0].int()
+		odd_team := odd_teams_ids.pop()
+		away_team_id := odd_team.vals[0].int()
+
+		// Quick and dirty...but also risky. No escaping, no param/value binding... feels wrong!
+		_ := db.exec_none("INSERT INTO `predictions` (`home_team_id`, `away_team_id`, `home_goals`, `away_goals`) VALUES(${home_team_id}, ${away_team_id}, ${rand.u8()}, ${rand.u8()})")
+	}
 }
 
 fn main() {
